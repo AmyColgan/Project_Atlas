@@ -1,6 +1,10 @@
 import { useSimulationStore } from "../state/simulationStore";
 
-export function TopBar() {
+interface TopBarProps {
+  onOpen3DPrototype: () => void;
+}
+
+export function TopBar({ onOpen3DPrototype }: TopBarProps) {
   const turn = useSimulationStore((s) => s.world.turn);
   const seed = useSimulationStore((s) => s.seed);
   const regenerate = useSimulationStore((s) => s.regenerate);
@@ -33,6 +37,12 @@ export function TopBar() {
           className="rounded-md border border-atlas-panelBorder bg-atlas-bg px-3 py-1.5 text-sm text-atlas-text transition hover:border-atlas-accent hover:text-atlas-accent"
         >
           Load
+        </button>
+        <button
+          onClick={onOpen3DPrototype}
+          className="rounded-md border border-atlas-panelBorder bg-atlas-bg px-3 py-1.5 text-sm text-atlas-text transition hover:border-atlas-accent hover:text-atlas-accent"
+        >
+          3D Prototype (Beta)
         </button>
       </div>
     </header>
