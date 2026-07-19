@@ -8,16 +8,18 @@ const MARKER_ID = "capital-settlement";
 interface CapitalMarkerProps {
   terrain: TerrainField;
   tileId: string;
+  visible: boolean;
 }
 
-export function CapitalMarker({ terrain, tileId }: CapitalMarkerProps) {
+export function CapitalMarker({ terrain, tileId, visible }: CapitalMarkerProps) {
   const tile = terrain.tiles.find((t) => t.id === tileId);
   const hovered = useAtlasSceneStore((s) => s.hovered?.kind === "capital" && s.hovered.id === MARKER_ID);
   const selected = useAtlasSceneStore((s) => s.selected?.kind === "capital" && s.selected.id === MARKER_ID);
   const setHovered = useAtlasSceneStore((s) => s.setHovered);
   const select = useAtlasSceneStore((s) => s.select);
 
-  if (!tile) return null;
+  // Fog of war: unexplored terrain must not expose settlements.
+  if (!tile || !visible) return null;
 
   const baseY = columnHeight(tile, terrain.maxElevation);
   const glow = selected ? 0.55 : hovered ? 0.25 : 0;

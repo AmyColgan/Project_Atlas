@@ -15,3 +15,8 @@ export const BIOME_HEIGHT_SCALE: Record<BiomeType, number> = {
   hills: 1.15,
   mountains: 1.85,
 };
+
+/** Uniform color for unexplored fog tiles — must not hint at the biome underneath. */
+export const FOG_COLOR = "#1b2027";
+/** Multiplier applied to a biome color for explored-but-not-currently-visible tiles. */
+export const EXPLORED_DIM_FACTOR = 0.42;

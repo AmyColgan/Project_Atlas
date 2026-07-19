@@ -16,7 +16,7 @@ function HighlightRing({ terrain, tileId, color, opacity, yOffset }: HighlightRi
   const y = columnHeight(tile, terrain.maxElevation) + yOffset;
 
   return (
-    <mesh position={[tile.worldX, y, tile.worldZ]} rotation={[-Math.PI / 2, 0, 0]}>
+    <mesh position={[tile.worldX, y, tile.worldZ]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
       <ringGeometry args={[terrain.hexSize * 0.65, terrain.hexSize * 0.92, 6]} />
       <meshBasicMaterial color={color} transparent opacity={opacity} depthWrite={false} />
     </mesh>
