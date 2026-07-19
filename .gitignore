@@ -1,0 +1,29 @@
+node_modules/
+dist/
+.DS_Store
+*.local
+
+# Build/cache artifacts
+*.tmp
+*.tsbuildinfo
+.vite/
+coverage/
+
+# Local save files (keep the folder, ignore its contents)
+saves/*
+!saves/.gitkeep
+
+# Environment / secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Editor caches
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Claude-flow session/tracking data (auto-generated, not project source)
+.claude-flow/
