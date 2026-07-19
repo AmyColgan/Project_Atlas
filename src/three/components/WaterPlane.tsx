@@ -24,6 +24,7 @@ export function WaterPlane({ terrain }: WaterPlaneProps) {
       position={[bounds.centerX, waterY, bounds.centerZ]}
       rotation={[-Math.PI / 2, 0, 0]}
       receiveShadow
+      raycast={() => null}
     >
       <planeGeometry args={[bounds.width, bounds.depth]} />
       <meshStandardMaterial

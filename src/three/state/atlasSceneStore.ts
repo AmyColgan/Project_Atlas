@@ -88,10 +88,10 @@ export interface AtlasSceneState {
 }
 
 interface PreviewResult {
-  path: AxialCoord[] | null;
-  cost: number | null;
-  reachable: boolean;
-  blockedReason: PreviewBlockedReason;
+  previewPath: AxialCoord[] | null;
+  previewCost: number | null;
+  previewReachable: boolean;
+  previewBlockedReason: PreviewBlockedReason;
 }
 
 function computePreview(
@@ -101,13 +101,35 @@ function computePreview(
   movementPoints: number
 ): PreviewResult {
   const result = findPath(index, fromCoord, toCoord);
-  if (!result) return { path: null, cost: null, reachable: false, blockedReason: "impassable" };
+  if (!result) {
+    return { previewPath: null, previewCost: null, previewReachable: false, previewBlockedReason: "impassable" };
+  }
   const reachable = result.cost <= movementPoints;
-  return { path: result.path, cost: result.cost, reachable, blockedReason: reachable ? null : "too-far" };
+  return {
+    previewPath: result.path,
+    previewCost: result.cost,
+    previewReachable: reachable,
+    previewBlockedReason: reachable ? null : "too-far",
+  };
 }
 
 function emptyPreview(): PreviewResult {
-  return { path: null, cost: null, reachable: false, blockedReason: null };
+  return { previewPath: null, previewCost: null, previewReachable: false, previewBlockedReason: null };
+}
+
+/**
+ * findReachableTiles() keys its result by hex coordinate key (e.g. "8,6"),
+ * but every consumer (armDestination, MovementRangeHighlights) checks against
+ * TerrainTileData.id (e.g. "tile-8-6") — translate here so the two never
+ * silently fail to match.
+ */
+function reachableTileIdsFrom(reachable: Map<string, { coord: AxialCoord }>, index: TerrainIndex): Set<string> {
+  const ids = new Set<string>();
+  for (const key of reachable.keys()) {
+    const id = index.get(key)?.id;
+    if (id) ids.add(id);
+  }
+  return ids;
 }
 
 function recomputeVisibility(
@@ -196,7 +218,7 @@ export const useAtlasSceneStore = create<AtlasSceneState>((set, get) => ({
       const reachable = explorerTile
         ? findReachableTiles(state.terrainIndex, explorerTile.coord, state.explorerMovementPoints)
         : new Map();
-      set({ selected: ref, reachableTileIds: new Set(reachable.keys()), ...clearMovementUI() });
+      set({ selected: ref, reachableTileIds: reachableTileIdsFrom(reachable, state.terrainIndex), ...clearMovementUI() });
     } else {
       set({ selected: ref, reachableTileIds: new Set(), ...clearMovementUI() });
     }
@@ -254,7 +276,7 @@ export const useAtlasSceneStore = create<AtlasSceneState>((set, get) => ({
     if (!explorerTile || !destTile) return;
 
     const preview = computePreview(state.terrainIndex, explorerTile.coord, destTile.coord, state.explorerMovementPoints);
-    if (!preview.reachable) return;
+    if (!preview.previewReachable) return;
 
     set({ hoveredDestinationTileId: tileId, pendingDestinationTileId: tileId, ...preview });
   },
@@ -348,7 +370,7 @@ export const useAtlasSceneStore = create<AtlasSceneState>((set, get) => ({
     const explorerTile = state.terrain.tiles.find((t) => t.id === state.explorerTileId);
     if (!explorerTile) return;
     const reachable = findReachableTiles(state.terrainIndex, explorerTile.coord, state.explorerMovementPoints);
-    set({ reachableTileIds: new Set(reachable.keys()) });
+    set({ reachableTileIds: reachableTileIdsFrom(reachable, state.terrainIndex) });
   },
 
   checkForNewDiscoveries: () => {

@@ -85,10 +85,17 @@ interface FogGroupProps {
   tiles: TerrainTileData[];
   hexSize: number;
   maxElevation: number;
+  onHoverTile: (tile: TerrainTileData) => void;
+  onSelectTile: (tile: TerrainTileData) => void;
 }
 
-/** Unexplored tiles render as uniform, flat fog — no biome, height, or landmark data leaks through. */
-function FogInstances({ tiles, hexSize, maxElevation }: FogGroupProps) {
+/**
+ * Unexplored tiles render as uniform, flat fog — no biome, height, or landmark
+ * data leaks through. They still need hover/click handlers, though: ordering
+ * the explorer into reachable-but-unrevealed territory is how fog gets
+ * pushed back in the first place, so fog can't be a dead click zone.
+ */
+function FogInstances({ tiles, hexSize, maxElevation, onHoverTile, onSelectTile }: FogGroupProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null!);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const fogHeight = maxElevation * FOG_HEIGHT_RATIO;
@@ -107,11 +114,25 @@ function FogInstances({ tiles, hexSize, maxElevation }: FogGroupProps) {
 
   if (tiles.length === 0) return null;
 
+  const handleMove = (event: ThreeEvent<PointerEvent>) => {
+    event.stopPropagation();
+    if (event.instanceId === undefined) return;
+    onHoverTile(tiles[event.instanceId]);
+  };
+
+  const handleClick = (event: ThreeEvent<MouseEvent>) => {
+    event.stopPropagation();
+    if (event.instanceId === undefined) return;
+    onSelectTile(tiles[event.instanceId]);
+  };
+
   return (
     <instancedMesh
       ref={meshRef}
       args={[undefined as unknown as THREE.BufferGeometry, undefined as unknown as THREE.Material, tiles.length]}
       receiveShadow
+      onPointerMove={handleMove}
+      onClick={handleClick}
     >
       <cylinderGeometry args={[hexSize * 0.96, hexSize * 0.96, 1, 6]} />
       <meshStandardMaterial color={FOG_COLOR} flatShading roughness={1} />
@@ -150,7 +171,13 @@ export function TerrainTiles({ terrain, visibleTileIds, exploredTileIds, onHover
 
   return (
     <group>
-      <FogInstances tiles={buckets.fog} hexSize={terrain.hexSize} maxElevation={terrain.maxElevation} />
+      <FogInstances
+        tiles={buckets.fog}
+        hexSize={terrain.hexSize}
+        maxElevation={terrain.maxElevation}
+        onHoverTile={onHoverTile}
+        onSelectTile={onSelectTile}
+      />
 
       {Array.from(buckets.explored.entries()).map(([biome, tiles]) => (
         <BiomeInstances
