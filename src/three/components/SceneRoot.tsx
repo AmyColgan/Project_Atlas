@@ -16,9 +16,11 @@ import { MovementRangeHighlights } from "./MovementRangeHighlights";
 import { PathPreview } from "./PathPreview";
 import { DiscoveryMarkers } from "./DiscoveryMarkers";
 import { ExplorerMovementController } from "./ExplorerMovementController";
+import { VegetationInstances } from "./VegetationInstances";
 
 export function SceneRoot() {
   const terrain = useAtlasSceneStore((s) => s.terrain);
+  const seed = useAtlasSceneStore((s) => s.seed);
   const settlementTileId = useAtlasSceneStore((s) => s.settlementTileId);
   const explorerTileId = useAtlasSceneStore((s) => s.explorerTileId);
   const hovered = useAtlasSceneStore((s) => s.hovered);
@@ -76,6 +78,7 @@ export function SceneRoot() {
       <RiverRibbons terrain={terrain} />
       <LakeSurfaces terrain={terrain} />
       <Ocean terrain={terrain} />
+      <VegetationInstances terrain={terrain} seed={seed} visibleTileIds={visibleTileIds} exploredTileIds={exploredTileIds} />
       <FogOverlayMesh terrain={terrain} visibleTileIds={visibleTileIds} exploredTileIds={exploredTileIds} />
       <TileHighlights terrain={terrain} hoveredTileId={hoveredTileId} selectedTileId={selectedTileId} />
 
