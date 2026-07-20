@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import type { ThreeEvent } from "@react-three/fiber";
 import { TerrainField } from "../types";
-import { columnHeight } from "./TerrainTiles";
+import { tileSurfaceHeight } from "./terrainHeight";
 import { useAtlasSceneStore } from "../state/atlasSceneStore";
 import { computeStepProgress, interpolateWorldPosition, lerp } from "../domain/travelAnimation";
 
@@ -30,7 +30,7 @@ export function ExplorerUnit({ terrain, tileId, visible }: ExplorerUnitProps) {
     const travel = useAtlasSceneStore.getState().travel;
     let worldX = tile.worldX;
     let worldZ = tile.worldZ;
-    let y = columnHeight(tile, terrain.maxElevation);
+    let y = tileSurfaceHeight(tile, terrain.maxElevation);
 
     if (travel && !travel.paused) {
       const nextCoord = travel.path[travel.currentStepIndex];
@@ -45,7 +45,7 @@ export function ExplorerUnit({ terrain, tileId, visible }: ExplorerUnitProps) {
         );
         worldX = interpolated.x;
         worldZ = interpolated.z;
-        y = lerp(columnHeight(tile, terrain.maxElevation), columnHeight(nextTile, terrain.maxElevation), t);
+        y = lerp(tileSurfaceHeight(tile, terrain.maxElevation), tileSurfaceHeight(nextTile, terrain.maxElevation), t);
       }
     }
 
@@ -73,7 +73,7 @@ export function ExplorerUnit({ terrain, tileId, visible }: ExplorerUnitProps) {
   return (
     <group
       ref={groupRef}
-      position={[tile.worldX, columnHeight(tile, terrain.maxElevation), tile.worldZ]}
+      position={[tile.worldX, tileSurfaceHeight(tile, terrain.maxElevation), tile.worldZ]}
       onPointerOver={handlePointerOver}
       onPointerOut={handlePointerOut}
       onClick={handleClick}

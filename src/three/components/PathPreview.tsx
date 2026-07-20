@@ -1,6 +1,6 @@
 import { AxialCoord } from "../../utils/hex";
 import { TerrainField } from "../types";
-import { columnHeight } from "./TerrainTiles";
+import { tileSurfaceHeight } from "./terrainHeight";
 import { PreviewBlockedReason } from "../state/atlasSceneStore";
 
 export type PathPreviewStatus = "valid" | "blocked" | null;
@@ -33,7 +33,7 @@ export function PathPreview({ terrain, path, destinationTileId, armed, blockedRe
       {pathTiles.map((tile) => (
         <mesh
           key={tile.id}
-          position={[tile.worldX, columnHeight(tile, terrain.maxElevation) + 0.12, tile.worldZ]}
+          position={[tile.worldX, tileSurfaceHeight(tile, terrain.maxElevation) + 0.12, tile.worldZ]}
           raycast={() => null}
         >
           <sphereGeometry args={[terrain.hexSize * 0.12, 10, 10]} />
@@ -43,7 +43,7 @@ export function PathPreview({ terrain, path, destinationTileId, armed, blockedRe
 
       {destinationTile && (
         <mesh
-          position={[destinationTile.worldX, columnHeight(destinationTile, terrain.maxElevation) + 0.06, destinationTile.worldZ]}
+          position={[destinationTile.worldX, tileSurfaceHeight(destinationTile, terrain.maxElevation) + 0.06, destinationTile.worldZ]}
           rotation={[-Math.PI / 2, 0, 0]}
           raycast={() => null}
         >

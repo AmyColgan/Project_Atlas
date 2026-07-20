@@ -1,5 +1,5 @@
 import { TerrainField } from "../types";
-import { columnHeight } from "./TerrainTiles";
+import { tileSurfaceHeight } from "./terrainHeight";
 
 interface HighlightRingProps {
   terrain: TerrainField;
@@ -13,7 +13,7 @@ function HighlightRing({ terrain, tileId, color, opacity, yOffset }: HighlightRi
   const tile = terrain.tiles.find((t) => t.id === tileId);
   if (!tile) return null;
 
-  const y = columnHeight(tile, terrain.maxElevation) + yOffset;
+  const y = tileSurfaceHeight(tile, terrain.maxElevation) + yOffset;
 
   return (
     <mesh position={[tile.worldX, y, tile.worldZ]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>

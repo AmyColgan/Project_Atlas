@@ -3,8 +3,11 @@ import { useAtlasSceneStore } from "../state/atlasSceneStore";
 import { TerrainTileData } from "../types";
 import { resolveVisibility } from "../domain/visibility";
 import { SceneLighting } from "./SceneLighting";
-import { TerrainTiles } from "./TerrainTiles";
-import { WaterPlane } from "./WaterPlane";
+import { TerrainSurface } from "./TerrainSurface";
+import { FogOverlayMesh } from "./FogOverlayMesh";
+import { RiverRibbons } from "./RiverRibbons";
+import { LakeSurfaces } from "./LakeSurfaces";
+import { Ocean } from "./Ocean";
 import { TileHighlights } from "./TileHighlight";
 import { CapitalMarker } from "./CapitalMarker";
 import { ExplorerUnit } from "./ExplorerUnit";
@@ -69,14 +72,11 @@ export function SceneRoot() {
   return (
     <>
       <SceneLighting />
-      <TerrainTiles
-        terrain={terrain}
-        visibleTileIds={visibleTileIds}
-        exploredTileIds={exploredTileIds}
-        onHoverTile={handleHoverTile}
-        onSelectTile={handleSelectTile}
-      />
-      <WaterPlane terrain={terrain} />
+      <TerrainSurface terrain={terrain} onHoverTile={handleHoverTile} onSelectTile={handleSelectTile} />
+      <RiverRibbons terrain={terrain} />
+      <LakeSurfaces terrain={terrain} />
+      <Ocean terrain={terrain} />
+      <FogOverlayMesh terrain={terrain} visibleTileIds={visibleTileIds} exploredTileIds={exploredTileIds} />
       <TileHighlights terrain={terrain} hoveredTileId={hoveredTileId} selectedTileId={selectedTileId} />
 
       {isMovementMode && <MovementRangeHighlights terrain={terrain} reachableTileIds={reachableTileIds} excludeTileId={explorerTileId} />}

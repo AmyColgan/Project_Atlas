@@ -1,7 +1,7 @@
 import { TerrainField } from "../types";
 import { Discovery, DiscoveryType } from "../domain/discovery";
 import { resolveVisibility } from "../domain/visibility";
-import { columnHeight } from "./TerrainTiles";
+import { tileSurfaceHeight } from "./terrainHeight";
 
 interface DiscoveryMarkerProps {
   type: DiscoveryType;
@@ -92,7 +92,7 @@ export function DiscoveryMarkers({ terrain, discoveries, visibleTileIds, explore
         if (!tile) return null;
 
         return (
-          <group key={discovery.id} position={[tile.worldX, columnHeight(tile, terrain.maxElevation), tile.worldZ]}>
+          <group key={discovery.id} position={[tile.worldX, tileSurfaceHeight(tile, terrain.maxElevation), tile.worldZ]}>
             <DiscoveryProp type={discovery.type} />
           </group>
         );

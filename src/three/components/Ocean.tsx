@@ -1,12 +1,22 @@
 import { useMemo } from "react";
 import { TerrainField } from "../types";
+import { WaterMaterial } from "./WaterMaterial";
 import { BIOME_COLORS } from "./biomeColors";
 
-interface WaterPlaneProps {
+interface OceanProps {
   terrain: TerrainField;
 }
 
-export function WaterPlane({ terrain }: WaterPlaneProps) {
+/**
+ * A flat plane at sea level over the terrain's own bounds — the "shrink to
+ * the landmass" the brief asks for comes from the terrain shape itself
+ * (continent falloff concentrates land centrally, ocean at the edges), not
+ * from resizing this plane. raycast disabled: a decorative water plane with
+ * no pointer handlers still occludes raycasts to whatever's beneath it
+ * unless explicitly excluded — the exact bug that made unexplored fog tiles
+ * unclickable in Milestone 3D-2.
+ */
+export function Ocean({ terrain }: OceanProps) {
   const bounds = useMemo(() => {
     const xs = terrain.tiles.map((t) => t.worldX);
     const zs = terrain.tiles.map((t) => t.worldZ);
@@ -26,14 +36,8 @@ export function WaterPlane({ terrain }: WaterPlaneProps) {
       receiveShadow
       raycast={() => null}
     >
-      <planeGeometry args={[bounds.width, bounds.depth]} />
-      <meshStandardMaterial
-        color={BIOME_COLORS.water}
-        transparent
-        opacity={0.75}
-        roughness={0.15}
-        metalness={0.1}
-      />
+      <planeGeometry args={[bounds.width, bounds.depth, 1, 1]} />
+      <WaterMaterial color={BIOME_COLORS.water} opacity={0.78} />
     </mesh>
   );
 }

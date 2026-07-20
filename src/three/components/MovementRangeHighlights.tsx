@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { TerrainField } from "../types";
-import { columnHeight } from "./TerrainTiles";
+import { tileSurfaceHeight } from "./terrainHeight";
 
 const RANGE_COLOR = "#5cd18f";
 const RANGE_OPACITY = 0.28;
@@ -27,7 +27,7 @@ export function MovementRangeHighlights({ terrain, reachableTileIds, excludeTile
     const mesh = meshRef.current;
     if (!mesh) return;
     tiles.forEach((tile, i) => {
-      const y = columnHeight(tile, terrain.maxElevation) + RANGE_HEIGHT_OFFSET;
+      const y = tileSurfaceHeight(tile, terrain.maxElevation) + RANGE_HEIGHT_OFFSET;
       dummy.position.set(tile.worldX, y, tile.worldZ);
       dummy.rotation.set(-Math.PI / 2, 0, 0);
       dummy.updateMatrix();

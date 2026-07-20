@@ -1,6 +1,6 @@
 import type { ThreeEvent } from "@react-three/fiber";
 import { TerrainField } from "../types";
-import { columnHeight } from "./TerrainTiles";
+import { tileSurfaceHeight } from "./terrainHeight";
 import { useAtlasSceneStore } from "../state/atlasSceneStore";
 
 const MARKER_ID = "capital-settlement";
@@ -21,7 +21,7 @@ export function CapitalMarker({ terrain, tileId, visible }: CapitalMarkerProps) 
   // Fog of war: unexplored terrain must not expose settlements.
   if (!tile || !visible) return null;
 
-  const baseY = columnHeight(tile, terrain.maxElevation);
+  const baseY = tileSurfaceHeight(tile, terrain.maxElevation);
   const glow = selected ? 0.55 : hovered ? 0.25 : 0;
 
   const handlePointerOver = (event: ThreeEvent<PointerEvent>) => {
