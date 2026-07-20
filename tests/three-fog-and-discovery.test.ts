@@ -12,7 +12,20 @@ const HEX_SIZE = 1;
 function tile(q: number, r: number, biome: BiomeType = "plains"): TerrainTileData {
   const coord: AxialCoord = { q, r };
   const pixel = axialToPixel(coord, HEX_SIZE);
-  return { id: `tile-${q}-${r}`, coord, biome, height: 0.5, worldX: pixel.x, worldZ: pixel.y };
+  return {
+    id: `tile-${q}-${r}`,
+    coord,
+    biome,
+    height: 0.5,
+    worldX: pixel.x,
+    worldZ: pixel.y,
+    isRiver: false,
+    riverFlowTo: null,
+    isLake: false,
+    lakeId: null,
+    isCoast: false,
+    isFertile: false,
+  };
 }
 
 function ring(center: AxialCoord, radius: number): AxialCoord[] {

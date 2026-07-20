@@ -1,6 +1,6 @@
 import { AxialCoord, hexDistance, hexKey, hexNeighbors } from "../../utils/hex";
 import { TerrainTileData } from "../types";
-import { BIOME_MOVEMENT_COST, isPassableBiome } from "./movementCost";
+import { getMovementCost, isPassableBiome } from "./movementCost";
 import { TerrainIndex } from "./hexIndex";
 
 export function isPassableTile(tile: TerrainTileData | undefined): tile is TerrainTileData {
@@ -58,7 +58,7 @@ export function findPath(index: TerrainIndex, start: AxialCoord, goal: AxialCoor
       const neighborTile = index.get(neighborKey);
       if (!isPassableTile(neighborTile)) continue;
 
-      const tentativeG = currentG + BIOME_MOVEMENT_COST[neighborTile.biome];
+      const tentativeG = currentG + getMovementCost(neighborTile);
       if (tentativeG < (gScore.get(neighborKey) ?? Infinity)) {
         cameFrom.set(neighborKey, currentKey);
         gScore.set(neighborKey, tentativeG);
@@ -118,7 +118,7 @@ export function findReachableTiles(index: TerrainIndex, start: AxialCoord, budge
       const neighborTile = index.get(neighborKey);
       if (!isPassableTile(neighborTile)) continue;
 
-      const newCost = currentCost + BIOME_MOVEMENT_COST[neighborTile.biome];
+      const newCost = currentCost + getMovementCost(neighborTile);
       if (newCost > budget) continue;
       if (newCost < (bestCost.get(neighborKey) ?? Infinity)) {
         bestCost.set(neighborKey, newCost);

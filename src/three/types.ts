@@ -10,6 +10,18 @@ export interface TerrainTileData {
   height: number;
   worldX: number;
   worldZ: number;
+
+  /** A river runs across this tile; does not override `biome`. */
+  isRiver: boolean;
+  /** Downstream neighbor along the river; null at a mouth/lake/terminus. */
+  riverFlowTo: AxialCoord | null;
+  /** Inland water body; when true `biome` is forced to "water". */
+  isLake: boolean;
+  lakeId: string | null;
+  /** Touches an ocean (not lake) tile below water level. */
+  isCoast: boolean;
+  /** Near a river, lake, or coast — preferred for farms/settlement. */
+  isFertile: boolean;
 }
 
 export interface TerrainField {

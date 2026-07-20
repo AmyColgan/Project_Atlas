@@ -1,61 +1,60 @@
 import { createPrng } from "../../utils/prng";
-import { AxialCoord, axialToPixel } from "../../utils/hex";
+import { AxialCoord, axialToPixel, hexDistance, hexKey, hexNeighbors } from "../../utils/hex";
 import { ValueNoise2D } from "./noise";
-import { BiomeType, TerrainField, TerrainTileData } from "../types";
+import {
+  continentFalloff,
+  createPassConfig,
+  createSpineConfig,
+  passDampening,
+  rescaleToThreshold,
+  ridgeContribution,
+  WorldBounds,
+} from "./heightfield";
+import { detectBasins, carveRivers } from "./hydrology";
+import { classifyBiome, FOREST_SUITABILITY_LEVEL } from "./biomes";
+import { TerrainField, TerrainTileData } from "../types";
 
 export interface TerrainGenerationConfig {
   columns: number;
   rows: number;
   hexSize: number;
   maxElevation: number;
-  /** Normalized (0..1) height threshold below which tiles become water. */
+  /** Normalized (0..1) height threshold below which tiles become ocean. */
   waterLevel: number;
 }
 
 export const DEFAULT_TERRAIN_CONFIG: TerrainGenerationConfig = {
-  columns: 22,
-  rows: 16,
+  columns: 40,
+  rows: 30,
   hexSize: 1.15,
   maxElevation: 5.5,
   waterLevel: 0.3,
 };
 
-const HILLS_LEVEL = 0.52;
-const MOUNTAINS_LEVEL = 0.74;
-const FOREST_MOISTURE_LEVEL = 0.55;
-
-function gaussianBump(worldX: number, worldZ: number, centerX: number, centerZ: number, radius: number): number {
-  const dx = worldX - centerX;
-  const dz = worldZ - centerZ;
-  const distSq = dx * dx + dz * dz;
-  return Math.exp(-distSq / (2 * radius * radius));
-}
-
-function classifyBiome(heightNorm: number, moisture: number): BiomeType {
-  if (heightNorm < DEFAULT_TERRAIN_CONFIG.waterLevel) return "water";
-  if (heightNorm < HILLS_LEVEL) return moisture > FOREST_MOISTURE_LEVEL ? "forest" : "plains";
-  if (heightNorm < MOUNTAINS_LEVEL) return "hills";
-  return "mountains";
-}
+const FERTILE_RADIUS = 2;
 
 /**
- * Builds a small, deterministic terrain field for the 3D prototype. This is
- * intentionally independent from `src/map/hexGrid.ts` (the 2D simulation's
- * terrain) — the prototype's world generation isn't wired to game state yet.
+ * Builds a coherent regional terrain field for the living-world vertical
+ * slice: one continent (base fBm), one mountain range along a seeded spine
+ * (not a radial blob, not unconstrained ridge noise — both can produce
+ * disconnected lumps depending on seed), a forced lowland pass through it,
+ * forest clusters from a low-frequency suitability field, at least one river
+ * (strict-descent carve) and at least one lake (real basin detection, not
+ * an authored dip's assumed location).
  *
- * A seeded mountain bump and lake dip are blended into the base fractal noise
- * so a small area reliably contains all five target biomes rather than
- * leaving it to chance.
+ * Deterministic: every independent random process gets its own `seed ^
+ * const` substream so tuning one never perturbs another.
  */
 export function generateTerrainField(seed: number, config: TerrainGenerationConfig = DEFAULT_TERRAIN_CONFIG): TerrainField {
   const { columns, rows, hexSize, maxElevation, waterLevel } = config;
 
   const heightPrng = createPrng(seed);
-  const moisturePrng = createPrng(seed ^ 0x9e3779b9);
+  const forestPrng = createPrng(seed ^ 0x9e3779b9);
   const featurePrng = createPrng(seed ^ 0x2545f491);
+  const riverPrng = createPrng(seed ^ 0x27d4eb2f);
 
   const heightNoise = new ValueNoise2D(heightPrng, 16);
-  const moistureNoise = new ValueNoise2D(moisturePrng, 12);
+  const forestNoise = new ValueNoise2D(forestPrng, 8);
 
   const coords: AxialCoord[] = [];
   for (let row = 0; row < rows; row++) {
@@ -66,56 +65,110 @@ export function generateTerrainField(seed: number, config: TerrainGenerationConf
   }
 
   const positions = coords.map((coord) => axialToPixel(coord, hexSize));
-
-  const minX = Math.min(...positions.map((p) => p.x));
-  const maxX = Math.max(...positions.map((p) => p.x));
-  const minZ = Math.min(...positions.map((p) => p.y));
-  const maxZ = Math.max(...positions.map((p) => p.y));
-
-  const mountainCenter = {
-    x: minX + (maxX - minX) * (0.3 + featurePrng.next() * 0.4),
-    z: minZ + (maxZ - minZ) * (0.15 + featurePrng.next() * 0.3),
+  const bounds: WorldBounds = {
+    minX: Math.min(...positions.map((p) => p.x)),
+    maxX: Math.max(...positions.map((p) => p.x)),
+    minZ: Math.min(...positions.map((p) => p.y)),
+    maxZ: Math.max(...positions.map((p) => p.y)),
   };
-  const lakeCenter = {
-    x: minX + (maxX - minX) * (0.3 + featurePrng.next() * 0.4),
-    z: minZ + (maxZ - minZ) * (0.6 + featurePrng.next() * 0.3),
-  };
+  const spanX = bounds.maxX - bounds.minX || 1;
+  const spanZ = bounds.maxZ - bounds.minZ || 1;
 
-  const spanX = maxX - minX || 1;
-  const spanZ = maxZ - minZ || 1;
+  const spine = createSpineConfig(featurePrng, bounds);
+  const pass = createPassConfig(featurePrng, bounds);
+  const ridgeWiggleNoise = new ValueNoise2D(featurePrng, 8);
+
+  const lakeBiasCenter = {
+    x: bounds.minX + spanX * (0.15 + featurePrng.next() * 0.2),
+    z: bounds.minZ + spanZ * (0.6 + featurePrng.next() * 0.3),
+  };
+  const lakeBiasRadius = spanX * 0.1;
+
   const noiseFrequency = 4.5;
+  const forestFrequency = 1.6;
 
-  const rawHeights = positions.map((pos) => {
-    const nx = ((pos.x - minX) / spanX) * noiseFrequency;
-    const nz = ((pos.y - minZ) / spanZ) * noiseFrequency;
-    const base = heightNoise.fbm(nx, nz, 4, 0.5);
+  // Target fractions pinned via rescaleToThreshold below, not hand-tuned
+  // noise amplitudes against fixed absolute thresholds — the latter is
+  // fragile and seed-sensitive (a bit more ridge weight and suddenly half
+  // the map is "ocean," or none of it is).
+  const TARGET_OCEAN_FRACTION = 0.22;
+  const TARGET_FOREST_FRACTION = 0.35;
+  const CONTINENT_WEIGHT = 0.45;
 
-    const mountainBump = gaussianBump(pos.x, pos.y, mountainCenter.x, mountainCenter.z, spanX * 0.14) * 0.95;
-    const lakeDip = gaussianBump(pos.x, pos.y, lakeCenter.x, lakeCenter.z, spanX * 0.12) * 0.7;
-
-    return base + mountainBump - lakeDip;
+  const rawBase = positions.map((pos) => {
+    const nx = ((pos.x - bounds.minX) / spanX) * noiseFrequency;
+    const nz = ((pos.y - bounds.minZ) / spanZ) * noiseFrequency;
+    return heightNoise.fbm(nx, nz, 4, 0.5);
   });
 
-  const minHeight = Math.min(...rawHeights);
-  const maxHeight = Math.max(...rawHeights);
-  const heightRange = maxHeight - minHeight || 1;
+  const rawCombined = positions.map((pos, i) => {
+    const ridge = ridgeContribution(pos.x, pos.y, spine, ridgeWiggleNoise) * passDampening(pos.x, pos.y, spine, pass);
+    const continent = continentFalloff(pos.x, pos.y, bounds) * CONTINENT_WEIGHT;
+
+    const dx = pos.x - lakeBiasCenter.x;
+    const dz = pos.y - lakeBiasCenter.z;
+    const lakeBias = 0.35 * Math.exp(-(dx * dx + dz * dz) / (2 * lakeBiasRadius * lakeBiasRadius));
+
+    // continentFalloff/ridge/lakeBias shape *which* tiles are lowest/highest
+    // (edges vs. interior, along the spine); the exact overall ocean/land
+    // split is pinned below, not left to depend on these weights.
+    return rawBase[i] + continent + ridge - lakeBias;
+  });
+  const heights = rescaleToThreshold(rawCombined, TARGET_OCEAN_FRACTION, waterLevel);
+
+  const rawForestSuitability = positions.map((pos) => {
+    const nx = ((pos.x - bounds.minX) / spanX) * forestFrequency;
+    const nz = ((pos.y - bounds.minZ) / spanZ) * forestFrequency;
+    return forestNoise.fbm(nx, nz, 3, 0.5);
+  });
+  // Pinned the same way: raw fbm's mean drifts per seed, which made a fixed
+  // FOREST_SUITABILITY_LEVEL threshold flip between "almost no forest" and
+  // "mostly forest" depending on seed instead of a consistent proportion.
+  const forestSuitability = rescaleToThreshold(rawForestSuitability, 1 - TARGET_FOREST_FRACTION, FOREST_SUITABILITY_LEVEL);
+
+  const heightSamples = coords.map((coord, i) => ({ coord, height: heights[i] }));
+  const basinIdByKey = detectBasins(heightSamples, waterLevel);
+  const { riverFlowToByKey, extraBasinIdByKey } = carveRivers(heightSamples, basinIdByKey, waterLevel, riverPrng);
+  for (const [key, id] of extraBasinIdByKey) basinIdByKey.set(key, id);
 
   const tiles: TerrainTileData[] = coords.map((coord, i) => {
-    const heightNorm = (rawHeights[i] - minHeight) / heightRange;
-    const nx = ((positions[i].x - minX) / spanX) * 6;
-    const nz = ((positions[i].y - minZ) / spanZ) * 6;
-    // Lattice values (and thus fbm output) are already in [0, 1] — no remapping needed.
-    const moisture = moistureNoise.fbm(nx, nz, 3, 0.5);
+    const key = hexKey(coord);
+    const height = heights[i];
+    const lakeId = basinIdByKey.get(key) ?? null;
+    const isLake = lakeId !== null;
+    const biome = classifyBiome(height, forestSuitability[i], waterLevel, isLake);
 
     return {
       id: `tile-${coord.q}-${coord.r}`,
       coord,
-      biome: classifyBiome(heightNorm, moisture),
-      height: heightNorm,
+      biome,
+      height,
       worldX: positions[i].x,
       worldZ: positions[i].y,
+      isRiver: riverFlowToByKey.has(key),
+      riverFlowTo: riverFlowToByKey.get(key) ?? null,
+      isLake,
+      lakeId,
+      isCoast: false,
+      isFertile: false,
     };
   });
+
+  const tileByKey = new Map(tiles.map((t) => [hexKey(t.coord), t]));
+
+  const waterInfluenceTiles = tiles.filter((t) => t.isRiver || t.isLake || t.biome === "water");
+  for (const tile of tiles) {
+    if (tile.biome === "water") continue;
+    tile.isCoast = hexNeighbors(tile.coord).some((n) => {
+      const neighbor = tileByKey.get(hexKey(n));
+      return !!neighbor && neighbor.biome === "water" && !neighbor.isLake;
+    });
+  }
+
+  for (const tile of tiles) {
+    if (tile.biome !== "plains") continue;
+    tile.isFertile = waterInfluenceTiles.some((wt) => hexDistance(tile.coord, wt.coord) <= FERTILE_RADIUS);
+  }
 
   return { tiles, hexSize, maxElevation, waterLevel };
 }
