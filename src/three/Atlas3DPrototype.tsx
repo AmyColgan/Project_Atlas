@@ -1,9 +1,11 @@
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { SceneRoot } from "./components/SceneRoot";
 import { DiscoveryCardOverlay } from "./components/DiscoveryCardOverlay";
 import { ChroniclePanel } from "./components/ChroniclePanel";
 import { ConstructionPanel } from "./components/ConstructionPanel";
+import { ObjectivePanel } from "./components/ObjectivePanel";
+import { DebugPanel } from "./components/DebugPanel";
 import { useAtlasSceneStore } from "./state/atlasSceneStore";
 import { RESOURCE_KINDS, RESOURCE_LABELS } from "./domain/resources";
 
@@ -37,7 +39,7 @@ interface Atlas3DPrototypeProps {
   onClose: () => void;
 }
 
-function MovementHud() {
+function SelectedUnitPanel() {
   const selected = useAtlasSceneStore((s) => s.selected);
   const travel = useAtlasSceneStore((s) => s.travel);
   const movementPoints = useAtlasSceneStore((s) => s.explorerMovementPoints);
@@ -76,34 +78,35 @@ function MovementHud() {
         </span>
       </div>
       <div className="mb-2">{statusLine}</div>
-      <div className="flex gap-2">
-        {pendingDestinationTileId && !travel && (
-          <>
-            <button
-              onClick={confirmMove}
-              className="rounded border border-emerald-400/40 bg-emerald-500/20 px-2 py-1 text-emerald-200 transition hover:bg-emerald-500/30"
-            >
-              Confirm Move
-            </button>
-            <button
-              onClick={cancelDestination}
-              className="rounded border border-white/20 bg-white/10 px-2 py-1 text-white/80 transition hover:bg-white/20"
-            >
-              Cancel
-            </button>
-          </>
-        )}
-      </div>
+      {pendingDestinationTileId && !travel && (
+        <div className="flex gap-2">
+          <button
+            onClick={confirmMove}
+            className="rounded border border-emerald-400/40 bg-emerald-500/20 px-2 py-1 text-emerald-200 transition hover:bg-emerald-500/30"
+          >
+            Confirm Move
+          </button>
+          <button
+            onClick={cancelDestination}
+            className="rounded border border-white/20 bg-white/10 px-2 py-1 text-white/80 transition hover:bg-white/20"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 /**
- * Isolated 3D foundation prototype. Mounted alongside (not instead of) the
- * existing Canvas2D renderer — see src/ui/App.tsx for the toggle.
+ * Isolated 3D world prototype. Mounted alongside (not instead of) the
+ * existing Canvas2D renderer — see src/ui/App.tsx for the toggle. The
+ * default view leads with the objective and resources, not a "3D Foundation
+ * Prototype" legend and a wall of key bindings — that detail lives behind
+ * the debug panel (backtick) instead.
  */
 export function Atlas3DPrototype({ onClose }: Atlas3DPrototypeProps) {
-  const seed = useAtlasSceneStore((s) => s.seed);
+  const [debugOpen, setDebugOpen] = useState(false);
   const regenerate = useAtlasSceneStore((s) => s.regenerate);
   const select = useAtlasSceneStore((s) => s.select);
   const confirmMove = useAtlasSceneStore((s) => s.confirmMove);
@@ -123,6 +126,10 @@ export function Atlas3DPrototype({ onClose }: Atlas3DPrototypeProps) {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "`") {
+        setDebugOpen((open) => !open);
+        return;
+      }
       if (activeDiscoveryId) return;
       if (event.key === "Escape") {
         if (constructionMode) {
@@ -171,13 +178,8 @@ export function Atlas3DPrototype({ onClose }: Atlas3DPrototypeProps) {
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-4">
         <div className="pointer-events-auto flex flex-col gap-2">
           <ResourceBar />
-          <div className="rounded-md border border-white/10 bg-black/50 px-3 py-2 text-xs text-white/80 backdrop-blur">
-            <div className="mb-1 font-semibold text-white">3D Foundation Prototype</div>
-            <div>Drag: pan &nbsp;·&nbsp; Right-drag: rotate/tilt &nbsp;·&nbsp; Scroll: zoom &nbsp;·&nbsp; WASD/arrows: pan</div>
-            <div>Click the explorer to plan a move · double-click explorer/capital to focus camera</div>
-            <div className="mt-1 text-white/50">Seed {seed}</div>
-          </div>
-          <MovementHud />
+          <ObjectivePanel />
+          <SelectedUnitPanel />
           <ConstructionPanel />
         </div>
 
@@ -225,6 +227,7 @@ export function Atlas3DPrototype({ onClose }: Atlas3DPrototypeProps) {
 
       <ChroniclePanel />
       <DiscoveryCardOverlay />
+      {debugOpen && <DebugPanel onClose={() => setDebugOpen(false)} />}
     </div>
   );
 }
