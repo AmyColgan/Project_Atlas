@@ -1,4 +1,4 @@
-export type ChronicleKind = "departure" | "discovery";
+export type ChronicleKind = "departure" | "discovery" | "construction";
 
 export interface ChronicleLocation {
   q: number;

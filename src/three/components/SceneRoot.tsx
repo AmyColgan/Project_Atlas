@@ -18,6 +18,8 @@ import { PathPreview } from "./PathPreview";
 import { DiscoveryMarkers } from "./DiscoveryMarkers";
 import { ExplorerMovementController } from "./ExplorerMovementController";
 import { VegetationInstances } from "./VegetationInstances";
+import { ConstructionSites } from "./ConstructionSites";
+import { ConstructionEligibilityHighlights } from "./ConstructionEligibilityHighlights";
 
 export function SceneRoot() {
   const terrain = useAtlasSceneStore((s) => s.terrain);
@@ -42,6 +44,14 @@ export function SceneRoot() {
   const armDestination = useAtlasSceneStore((s) => s.armDestination);
   const travel = useAtlasSceneStore((s) => s.travel);
 
+  const constructionMode = useAtlasSceneStore((s) => s.constructionMode);
+  const selectedProjectType = useAtlasSceneStore((s) => s.selectedProjectType);
+  const constructionSites = useAtlasSceneStore((s) => s.constructionSites);
+  const hoveredConstructionTileId = useAtlasSceneStore((s) => s.hoveredConstructionTileId);
+  const pendingConstructionTileId = useAtlasSceneStore((s) => s.pendingConstructionTileId);
+  const hoverConstructionTile = useAtlasSceneStore((s) => s.hoverConstructionTile);
+  const armConstructionSite = useAtlasSceneStore((s) => s.armConstructionSite);
+
   const isMovementMode = selected?.kind === "explorer" && !travel;
 
   const center = useMemo(() => {
@@ -55,17 +65,23 @@ export function SceneRoot() {
   }, [terrain]);
 
   const handleHoverTile = (tile: TerrainTileData) => {
-    if (isMovementMode) hoverDestination(tile.id);
+    if (constructionMode) hoverConstructionTile(tile.id);
+    else if (isMovementMode) hoverDestination(tile.id);
     else setHovered({ kind: "tile", id: tile.id });
   };
 
   const handleSelectTile = (tile: TerrainTileData) => {
-    if (isMovementMode) armDestination(tile.id);
+    if (constructionMode) armConstructionSite(tile.id);
+    else if (isMovementMode) armDestination(tile.id);
     else select({ kind: "tile", id: tile.id });
   };
 
-  const hoveredTileId = !isMovementMode && hovered?.kind === "tile" ? hovered.id : undefined;
-  const selectedTileId = selected?.kind === "tile" ? selected.id : undefined;
+  const hoveredTileId = constructionMode
+    ? (hoveredConstructionTileId ?? undefined)
+    : !isMovementMode && hovered?.kind === "tile"
+      ? hovered.id
+      : undefined;
+  const selectedTileId = constructionMode ? (pendingConstructionTileId ?? undefined) : selected?.kind === "tile" ? selected.id : undefined;
 
   const settlementVisible = resolveVisibility(settlementTileId, visibleTileIds, exploredTileIds) !== "unexplored";
   const explorerVisible = resolveVisibility(explorerTileId, visibleTileIds, exploredTileIds) !== "unexplored";
@@ -113,6 +129,17 @@ export function SceneRoot() {
         visibleTileIds={visibleTileIds}
         exploredTileIds={exploredTileIds}
       />
+
+      {constructionMode && selectedProjectType && (
+        <ConstructionEligibilityHighlights
+          terrain={terrain}
+          projectType={selectedProjectType}
+          visibleTileIds={visibleTileIds}
+          exploredTileIds={exploredTileIds}
+          excludeTileIds={new Set(constructionSites.map((s) => s.tileId))}
+        />
+      )}
+      <ConstructionSites terrain={terrain} sites={constructionSites} />
 
       <CapitalMarker terrain={terrain} tileId={settlementTileId} visible={settlementVisible} />
       <ExplorerUnit terrain={terrain} tileId={explorerTileId} visible={explorerVisible} />

@@ -9,6 +9,16 @@ import { computeVisibleTileIds } from "../domain/visibility";
 import { Discovery, generateDiscoveries } from "../domain/discovery";
 import { ChronicleEntry, createChronicleEntry } from "../domain/chronicle";
 import { TRAVEL_STEP_DURATION_MS } from "../domain/travelAnimation";
+import { ResourceStock, STARTING_RESOURCES } from "../domain/resources";
+import {
+  canAffordProject,
+  ConstructionSite,
+  createConstructionSite,
+  isTileEligibleForProject,
+  PROJECT_DEFINITIONS,
+  ProjectType,
+  tickConstructionPhase,
+} from "../domain/construction";
 
 const EXPLORER_MAX_MOVEMENT_POINTS = 6;
 
@@ -71,6 +81,14 @@ export interface AtlasSceneState {
   cameraFollowExplorer: boolean;
   cameraFocusRequest: CameraFocusRequest | null;
 
+  resources: ResourceStock;
+  constructionSites: ConstructionSite[];
+  constructionMode: boolean;
+  selectedProjectType: ProjectType | null;
+  hoveredConstructionTileId: string | null;
+  pendingConstructionTileId: string | null;
+  phase: number;
+
   setHovered: (ref: SelectableRef | null) => void;
   select: (ref: SelectableRef | null) => void;
   regenerate: (seed: number) => void;
@@ -82,7 +100,7 @@ export interface AtlasSceneState {
   confirmMove: () => void;
   tick: (nowMs: number) => void;
   resumeAfterDiscovery: (nowMs: number) => void;
-  refreshMovementPoints: () => void;
+  advancePhase: () => void;
   refreshReachable: () => void;
   checkForNewDiscoveries: () => void;
 
@@ -93,6 +111,14 @@ export interface AtlasSceneState {
   setCameraFollow: (follow: boolean) => void;
   requestCameraFocus: (target: "explorer" | "capital") => void;
   clearCameraFocus: () => void;
+
+  openConstructionMode: () => void;
+  closeConstructionMode: () => void;
+  selectProjectType: (type: ProjectType | null) => void;
+  hoverConstructionTile: (tileId: string | null) => void;
+  armConstructionSite: (tileId: string) => void;
+  cancelConstructionPlacement: () => void;
+  confirmConstruction: () => void;
 }
 
 export interface CameraFocusRequest {
@@ -196,6 +222,15 @@ function clearMovementUI() {
   };
 }
 
+function clearConstructionUI() {
+  return {
+    constructionMode: false,
+    selectedProjectType: null as ProjectType | null,
+    hoveredConstructionTileId: null,
+    pendingConstructionTileId: null,
+  };
+}
+
 export const useAtlasSceneStore = create<AtlasSceneState>((set, get) => ({
   seed: initialSeed,
   terrain: initialWorld.terrain,
@@ -225,6 +260,11 @@ export const useAtlasSceneStore = create<AtlasSceneState>((set, get) => ({
 
   cameraFollowExplorer: false,
   cameraFocusRequest: null,
+
+  resources: { ...STARTING_RESOURCES },
+  constructionSites: [],
+  ...clearConstructionUI(),
+  phase: 1,
 
   setHovered: (ref) => set({ hovered: ref }),
 
@@ -257,6 +297,10 @@ export const useAtlasSceneStore = create<AtlasSceneState>((set, get) => ({
       chronicleOpen: false,
       cameraFollowExplorer: false,
       cameraFocusRequest: null,
+      resources: { ...STARTING_RESOURCES },
+      constructionSites: [],
+      ...clearConstructionUI(),
+      phase: 1,
       explorerMovementPoints: EXPLORER_MAX_MOVEMENT_POINTS,
       explorerMaxMovementPoints: EXPLORER_MAX_MOVEMENT_POINTS,
     });
@@ -378,8 +422,36 @@ export const useAtlasSceneStore = create<AtlasSceneState>((set, get) => ({
     get().checkForNewDiscoveries();
   },
 
-  refreshMovementPoints: () => {
-    set((s) => ({ explorerMovementPoints: s.explorerMaxMovementPoints }));
+  advancePhase: () => {
+    const state = get();
+    const { sites, stock, justCompleted } = tickConstructionPhase(state.constructionSites, state.resources);
+
+    let chronicle = state.chronicle;
+    let sequence = state.chronicleSequence;
+    for (const site of justCompleted) {
+      const def = PROJECT_DEFINITIONS[site.type];
+      const siteTile = state.terrain.tiles.find((t) => t.id === site.tileId);
+      sequence += 1;
+      chronicle = [
+        ...chronicle,
+        createChronicleEntry({
+          sequence,
+          kind: "construction",
+          summary: `${def.name} construction complete.`,
+          location: siteTile ? { q: siteTile.coord.q, r: siteTile.coord.r } : null,
+          rewardText: `Now producing ${def.productionPerPhase} ${def.producesResource} per phase.`,
+        }),
+      ];
+    }
+
+    set({
+      resources: stock,
+      constructionSites: sites,
+      chronicle,
+      chronicleSequence: sequence,
+      phase: state.phase + 1,
+      explorerMovementPoints: state.explorerMaxMovementPoints,
+    });
     get().refreshReachable();
   },
 
@@ -413,14 +485,22 @@ export const useAtlasSceneStore = create<AtlasSceneState>((set, get) => ({
       rewardText: found.reward.description,
     });
 
-    set((s) => ({
-      discoveries: updatedDiscoveries,
-      activeDiscoveryId: found.id,
-      chronicle: [...s.chronicle, entry],
-      chronicleSequence: sequence,
-      explorerMovementPoints: Math.min(s.explorerMaxMovementPoints, s.explorerMovementPoints + rewardPoints),
-      travel: s.travel ? { ...s.travel, paused: true } : null,
-    }));
+    set((s) => {
+      const resources = { ...s.resources };
+      if (found.reward.kind === "resource-bonus" && found.reward.resourceKind && found.reward.resourceAmount) {
+        resources[found.reward.resourceKind] += found.reward.resourceAmount;
+      }
+
+      return {
+        discoveries: updatedDiscoveries,
+        activeDiscoveryId: found.id,
+        chronicle: [...s.chronicle, entry],
+        chronicleSequence: sequence,
+        resources,
+        explorerMovementPoints: Math.min(s.explorerMaxMovementPoints, s.explorerMovementPoints + rewardPoints),
+        travel: s.travel ? { ...s.travel, paused: true } : null,
+      };
+    });
   },
 
   toggleChronicle: () => set((s) => ({ chronicleOpen: !s.chronicleOpen })),
@@ -431,6 +511,70 @@ export const useAtlasSceneStore = create<AtlasSceneState>((set, get) => ({
   requestCameraFocus: (target) =>
     set((s) => ({ cameraFocusRequest: { target, nonce: (s.cameraFocusRequest?.nonce ?? 0) + 1 } })),
   clearCameraFocus: () => set({ cameraFocusRequest: null }),
+
+  openConstructionMode: () => set({ constructionMode: true, selected: null, ...clearMovementUI() }),
+  closeConstructionMode: () => set({ ...clearConstructionUI() }),
+
+  selectProjectType: (type) =>
+    set({ selectedProjectType: type, hoveredConstructionTileId: null, pendingConstructionTileId: null }),
+
+  hoverConstructionTile: (tileId) => {
+    const state = get();
+    if (state.pendingConstructionTileId) return; // frozen once armed, same convention as hoverDestination
+    set({ hoveredConstructionTileId: tileId });
+  },
+
+  armConstructionSite: (tileId) => {
+    const state = get();
+    if (!state.constructionMode || !state.selectedProjectType) return;
+    if (tileId === state.settlementTileId || tileId === state.explorerTileId) return;
+    if (state.constructionSites.some((s) => s.tileId === tileId)) return;
+
+    const tile = state.terrain.tiles.find((t) => t.id === tileId);
+    if (!tile) return;
+    if (!isTileEligibleForProject(tile, state.selectedProjectType)) return;
+    if (!canAffordProject(state.resources, state.selectedProjectType)) return;
+
+    set({ hoveredConstructionTileId: tileId, pendingConstructionTileId: tileId });
+  },
+
+  cancelConstructionPlacement: () => set({ hoveredConstructionTileId: null, pendingConstructionTileId: null }),
+
+  confirmConstruction: () => {
+    const state = get();
+    if (!state.pendingConstructionTileId || !state.selectedProjectType) return;
+    const type = state.selectedProjectType;
+    if (!canAffordProject(state.resources, type)) return;
+
+    const def = PROJECT_DEFINITIONS[type];
+    const resources = { ...state.resources };
+    for (const [kind, amount] of Object.entries(def.cost) as [keyof ResourceStock, number][]) {
+      resources[kind] -= amount;
+    }
+
+    const siteTile = state.terrain.tiles.find((t) => t.id === state.pendingConstructionTileId);
+    const site = createConstructionSite(
+      `site-${state.constructionSites.length}-${state.pendingConstructionTileId}`,
+      state.pendingConstructionTileId,
+      type
+    );
+
+    const sequence = state.chronicleSequence + 1;
+    const entry = createChronicleEntry({
+      sequence,
+      kind: "construction",
+      summary: `Construction began: ${def.name}.`,
+      location: siteTile ? { q: siteTile.coord.q, r: siteTile.coord.r } : null,
+    });
+
+    set({
+      resources,
+      constructionSites: [...state.constructionSites, site],
+      chronicle: [...state.chronicle, entry],
+      chronicleSequence: sequence,
+      ...clearConstructionUI(),
+    });
+  },
 }));
 
 useAtlasSceneStore.getState().checkForNewDiscoveries();

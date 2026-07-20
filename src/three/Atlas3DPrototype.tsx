@@ -3,7 +3,35 @@ import { Canvas } from "@react-three/fiber";
 import { SceneRoot } from "./components/SceneRoot";
 import { DiscoveryCardOverlay } from "./components/DiscoveryCardOverlay";
 import { ChroniclePanel } from "./components/ChroniclePanel";
+import { ConstructionPanel } from "./components/ConstructionPanel";
 import { useAtlasSceneStore } from "./state/atlasSceneStore";
+import { RESOURCE_KINDS, RESOURCE_LABELS } from "./domain/resources";
+
+function ResourceBar() {
+  const resources = useAtlasSceneStore((s) => s.resources);
+  const phase = useAtlasSceneStore((s) => s.phase);
+  const travel = useAtlasSceneStore((s) => s.travel);
+  const advancePhase = useAtlasSceneStore((s) => s.advancePhase);
+
+  return (
+    <div className="pointer-events-auto flex items-center gap-3 rounded-md border border-white/10 bg-black/60 px-3 py-1.5 text-xs text-white/85 backdrop-blur">
+      {RESOURCE_KINDS.map((kind) => (
+        <span key={kind}>
+          {RESOURCE_LABELS[kind]}: <span className="font-semibold text-white">{resources[kind]}</span>
+        </span>
+      ))}
+      <span className="mx-1 text-white/30">|</span>
+      <span>Phase {phase}</span>
+      <button
+        onClick={advancePhase}
+        disabled={!!travel}
+        className="rounded border border-white/20 bg-white/10 px-2 py-0.5 text-white/85 transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        End Expedition Phase
+      </button>
+    </div>
+  );
+}
 
 interface Atlas3DPrototypeProps {
   onClose: () => void;
@@ -20,7 +48,6 @@ function MovementHud() {
   const previewBlockedReason = useAtlasSceneStore((s) => s.previewBlockedReason);
   const confirmMove = useAtlasSceneStore((s) => s.confirmMove);
   const cancelDestination = useAtlasSceneStore((s) => s.cancelDestination);
-  const refreshMovementPoints = useAtlasSceneStore((s) => s.refreshMovementPoints);
 
   const isMovementMode = selected?.kind === "explorer";
   if (!isMovementMode) return null;
@@ -66,14 +93,6 @@ function MovementHud() {
             </button>
           </>
         )}
-        {!travel && movementPoints < maxMovementPoints && (
-          <button
-            onClick={refreshMovementPoints}
-            className="rounded border border-white/20 bg-white/10 px-2 py-1 text-white/80 transition hover:bg-white/20"
-          >
-            Refresh Movement
-          </button>
-        )}
       </div>
     </div>
   );
@@ -95,20 +114,45 @@ export function Atlas3DPrototype({ onClose }: Atlas3DPrototypeProps) {
   const toggleCameraFollow = useAtlasSceneStore((s) => s.toggleCameraFollow);
   const setCameraFollow = useAtlasSceneStore((s) => s.setCameraFollow);
   const clearCameraFocus = useAtlasSceneStore((s) => s.clearCameraFocus);
+  const constructionMode = useAtlasSceneStore((s) => s.constructionMode);
+  const openConstructionMode = useAtlasSceneStore((s) => s.openConstructionMode);
+  const closeConstructionMode = useAtlasSceneStore((s) => s.closeConstructionMode);
+  const cancelConstructionPlacement = useAtlasSceneStore((s) => s.cancelConstructionPlacement);
+  const confirmConstruction = useAtlasSceneStore((s) => s.confirmConstruction);
+  const pendingConstructionTileId = useAtlasSceneStore((s) => s.pendingConstructionTileId);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (activeDiscoveryId) return;
       if (event.key === "Escape") {
-        cancelDestination();
+        if (constructionMode) {
+          if (pendingConstructionTileId) cancelConstructionPlacement();
+          else closeConstructionMode();
+        } else {
+          cancelDestination();
+        }
         setCameraFollow(false);
         clearCameraFocus();
       }
-      if (event.key === "Enter") confirmMove();
+      if (event.key === "Enter") {
+        if (constructionMode) confirmConstruction();
+        else confirmMove();
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [confirmMove, cancelDestination, activeDiscoveryId, setCameraFollow, clearCameraFocus]);
+  }, [
+    confirmMove,
+    cancelDestination,
+    activeDiscoveryId,
+    setCameraFollow,
+    clearCameraFocus,
+    constructionMode,
+    pendingConstructionTileId,
+    cancelConstructionPlacement,
+    closeConstructionMode,
+    confirmConstruction,
+  ]);
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-[#10151c]">
@@ -126,6 +170,7 @@ export function Atlas3DPrototype({ onClose }: Atlas3DPrototypeProps) {
 
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-4">
         <div className="pointer-events-auto flex flex-col gap-2">
+          <ResourceBar />
           <div className="rounded-md border border-white/10 bg-black/50 px-3 py-2 text-xs text-white/80 backdrop-blur">
             <div className="mb-1 font-semibold text-white">3D Foundation Prototype</div>
             <div>Drag: pan &nbsp;·&nbsp; Right-drag: rotate/tilt &nbsp;·&nbsp; Scroll: zoom &nbsp;·&nbsp; WASD/arrows: pan</div>
@@ -133,9 +178,20 @@ export function Atlas3DPrototype({ onClose }: Atlas3DPrototypeProps) {
             <div className="mt-1 text-white/50">Seed {seed}</div>
           </div>
           <MovementHud />
+          <ConstructionPanel />
         </div>
 
         <div className="pointer-events-auto flex gap-2">
+          <button
+            onClick={constructionMode ? closeConstructionMode : openConstructionMode}
+            className={`rounded-md border px-3 py-1.5 text-sm backdrop-blur transition ${
+              constructionMode
+                ? "border-amber-400/50 bg-amber-500/20 text-amber-200"
+                : "border-white/20 bg-black/50 text-white/90 hover:border-white/40"
+            }`}
+          >
+            Construction
+          </button>
           <button
             onClick={toggleCameraFollow}
             className={`rounded-md border px-3 py-1.5 text-sm backdrop-blur transition ${

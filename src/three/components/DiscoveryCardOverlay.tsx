@@ -1,4 +1,5 @@
 import { useAtlasSceneStore } from "../state/atlasSceneStore";
+import { RESOURCE_LABELS } from "../domain/resources";
 
 const TYPE_LABELS: Record<string, string> = {
   "ancient-ruins": "Ancient Ruins",
@@ -25,6 +26,11 @@ export function DiscoveryCardOverlay() {
           {discovery.reward.description}
           {discovery.reward.kind === "movement-cache" && discovery.reward.movementPointsGranted ? (
             <span className="ml-1 text-emerald-300">(+{discovery.reward.movementPointsGranted} movement)</span>
+          ) : null}
+          {discovery.reward.kind === "resource-bonus" && discovery.reward.resourceKind && discovery.reward.resourceAmount ? (
+            <span className="ml-1 text-emerald-300">
+              (+{discovery.reward.resourceAmount} {RESOURCE_LABELS[discovery.reward.resourceKind]})
+            </span>
           ) : null}
         </div>
         <button

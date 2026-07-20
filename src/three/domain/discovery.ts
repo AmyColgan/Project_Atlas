@@ -1,5 +1,6 @@
 import { createPrng, Prng } from "../../utils/prng";
 import { TerrainTileData } from "../types";
+import { ResourceKind } from "./resources";
 
 export type DiscoveryType = "ancient-ruins" | "natural-landmark" | "abandoned-camp" | "resource-deposit";
 
@@ -11,9 +12,11 @@ export const DISCOVERY_TYPES: readonly DiscoveryType[] = [
 ];
 
 export interface DiscoveryReward {
-  kind: "movement-cache" | "lore";
+  kind: "movement-cache" | "lore" | "resource-bonus";
   description: string;
   movementPointsGranted?: number;
+  resourceKind?: ResourceKind;
+  resourceAmount?: number;
 }
 
 export interface Discovery {
@@ -77,6 +80,12 @@ function buildReward(type: DiscoveryType): DiscoveryReward {
     case "natural-landmark":
       return { kind: "lore", description: "Worth remembering, if nothing else." };
     case "resource-deposit":
+      return {
+        kind: "resource-bonus",
+        description: "A ready stock of stone, ripe for a nearby quarry.",
+        resourceKind: "stone",
+        resourceAmount: 6,
+      };
     default:
       return { kind: "lore", description: "Marked for whoever settles this land next." };
   }
