@@ -68,6 +68,9 @@ export interface AtlasSceneState {
   chronicleSequence: number;
   chronicleOpen: boolean;
 
+  cameraFollowExplorer: boolean;
+  cameraFocusRequest: CameraFocusRequest | null;
+
   setHovered: (ref: SelectableRef | null) => void;
   select: (ref: SelectableRef | null) => void;
   regenerate: (seed: number) => void;
@@ -85,6 +88,17 @@ export interface AtlasSceneState {
 
   toggleChronicle: () => void;
   closeChronicle: () => void;
+
+  toggleCameraFollow: () => void;
+  setCameraFollow: (follow: boolean) => void;
+  requestCameraFocus: (target: "explorer" | "capital") => void;
+  clearCameraFocus: () => void;
+}
+
+export interface CameraFocusRequest {
+  target: "explorer" | "capital";
+  /** Increments per request so a repeat focus on the same target still re-triggers the camera snap. */
+  nonce: number;
 }
 
 interface PreviewResult {
@@ -209,6 +223,9 @@ export const useAtlasSceneStore = create<AtlasSceneState>((set, get) => ({
   chronicleSequence: 0,
   chronicleOpen: false,
 
+  cameraFollowExplorer: false,
+  cameraFocusRequest: null,
+
   setHovered: (ref) => set({ hovered: ref }),
 
   select: (ref) => {
@@ -238,6 +255,8 @@ export const useAtlasSceneStore = create<AtlasSceneState>((set, get) => ({
       chronicle: [],
       chronicleSequence: 0,
       chronicleOpen: false,
+      cameraFollowExplorer: false,
+      cameraFocusRequest: null,
       explorerMovementPoints: EXPLORER_MAX_MOVEMENT_POINTS,
       explorerMaxMovementPoints: EXPLORER_MAX_MOVEMENT_POINTS,
     });
@@ -406,6 +425,12 @@ export const useAtlasSceneStore = create<AtlasSceneState>((set, get) => ({
 
   toggleChronicle: () => set((s) => ({ chronicleOpen: !s.chronicleOpen })),
   closeChronicle: () => set({ chronicleOpen: false }),
+
+  toggleCameraFollow: () => set((s) => ({ cameraFollowExplorer: !s.cameraFollowExplorer })),
+  setCameraFollow: (follow) => set({ cameraFollowExplorer: follow }),
+  requestCameraFocus: (target) =>
+    set((s) => ({ cameraFocusRequest: { target, nonce: (s.cameraFocusRequest?.nonce ?? 0) + 1 } })),
+  clearCameraFocus: () => set({ cameraFocusRequest: null }),
 }));
 
 useAtlasSceneStore.getState().checkForNewDiscoveries();

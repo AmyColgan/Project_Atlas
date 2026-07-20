@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useAtlasSceneStore } from "../state/atlasSceneStore";
 import { TerrainTileData } from "../types";
 import { resolveVisibility } from "../domain/visibility";
+import { tileSurfaceHeight } from "./terrainHeight";
 import { SceneLighting } from "./SceneLighting";
 import { TerrainSurface } from "./TerrainSurface";
 import { FogOverlayMesh } from "./FogOverlayMesh";
@@ -71,6 +72,19 @@ export function SceneRoot() {
 
   const activeDestinationTileId = pendingDestinationTileId ?? (isMovementMode ? hoveredDestinationTileId : null);
 
+  const explorerTile = terrain.tiles.find((t) => t.id === explorerTileId);
+  const settlementTile = terrain.tiles.find((t) => t.id === settlementTileId);
+  const explorerPosition = explorerTile
+    ? ([explorerTile.worldX, tileSurfaceHeight(explorerTile, terrain.maxElevation), explorerTile.worldZ] as [number, number, number])
+    : null;
+  const capitalPosition = settlementTile
+    ? ([settlementTile.worldX, tileSurfaceHeight(settlementTile, terrain.maxElevation), settlementTile.worldZ] as [
+        number,
+        number,
+        number
+      ])
+    : null;
+
   return (
     <>
       <SceneLighting />
@@ -103,7 +117,11 @@ export function SceneRoot() {
       <CapitalMarker terrain={terrain} tileId={settlementTileId} visible={settlementVisible} />
       <ExplorerUnit terrain={terrain} tileId={explorerTileId} visible={explorerVisible} />
       <ExplorerMovementController />
-      <StrategyCameraRig target={center} />
+      <StrategyCameraRig
+        target={center}
+        followPosition={explorerPosition}
+        focusPositions={{ explorer: explorerPosition, capital: capitalPosition }}
+      />
     </>
   );
 }

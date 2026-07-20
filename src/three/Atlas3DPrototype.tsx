@@ -91,16 +91,24 @@ export function Atlas3DPrototype({ onClose }: Atlas3DPrototypeProps) {
   const cancelDestination = useAtlasSceneStore((s) => s.cancelDestination);
   const toggleChronicle = useAtlasSceneStore((s) => s.toggleChronicle);
   const activeDiscoveryId = useAtlasSceneStore((s) => s.activeDiscoveryId);
+  const cameraFollowExplorer = useAtlasSceneStore((s) => s.cameraFollowExplorer);
+  const toggleCameraFollow = useAtlasSceneStore((s) => s.toggleCameraFollow);
+  const setCameraFollow = useAtlasSceneStore((s) => s.setCameraFollow);
+  const clearCameraFocus = useAtlasSceneStore((s) => s.clearCameraFocus);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (activeDiscoveryId) return;
-      if (event.key === "Escape") cancelDestination();
+      if (event.key === "Escape") {
+        cancelDestination();
+        setCameraFollow(false);
+        clearCameraFocus();
+      }
       if (event.key === "Enter") confirmMove();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [confirmMove, cancelDestination, activeDiscoveryId]);
+  }, [confirmMove, cancelDestination, activeDiscoveryId, setCameraFollow, clearCameraFocus]);
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-[#10151c]">
@@ -120,14 +128,24 @@ export function Atlas3DPrototype({ onClose }: Atlas3DPrototypeProps) {
         <div className="pointer-events-auto flex flex-col gap-2">
           <div className="rounded-md border border-white/10 bg-black/50 px-3 py-2 text-xs text-white/80 backdrop-blur">
             <div className="mb-1 font-semibold text-white">3D Foundation Prototype</div>
-            <div>Drag: pan &nbsp;·&nbsp; Right-drag: rotate/tilt &nbsp;·&nbsp; Scroll: zoom</div>
-            <div>Click the explorer to plan a move · click a tile/settlement to inspect it</div>
+            <div>Drag: pan &nbsp;·&nbsp; Right-drag: rotate/tilt &nbsp;·&nbsp; Scroll: zoom &nbsp;·&nbsp; WASD/arrows: pan</div>
+            <div>Click the explorer to plan a move · double-click explorer/capital to focus camera</div>
             <div className="mt-1 text-white/50">Seed {seed}</div>
           </div>
           <MovementHud />
         </div>
 
         <div className="pointer-events-auto flex gap-2">
+          <button
+            onClick={toggleCameraFollow}
+            className={`rounded-md border px-3 py-1.5 text-sm backdrop-blur transition ${
+              cameraFollowExplorer
+                ? "border-emerald-400/50 bg-emerald-500/20 text-emerald-200"
+                : "border-white/20 bg-black/50 text-white/90 hover:border-white/40"
+            }`}
+          >
+            {cameraFollowExplorer ? "Following Explorer" : "Follow Explorer"}
+          </button>
           <button
             onClick={toggleChronicle}
             className="rounded-md border border-white/20 bg-black/50 px-3 py-1.5 text-sm text-white/90 backdrop-blur transition hover:border-white/40"

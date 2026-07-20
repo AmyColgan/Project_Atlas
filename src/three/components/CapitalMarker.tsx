@@ -17,6 +17,7 @@ export function CapitalMarker({ terrain, tileId, visible }: CapitalMarkerProps) 
   const selected = useAtlasSceneStore((s) => s.selected?.kind === "capital" && s.selected.id === MARKER_ID);
   const setHovered = useAtlasSceneStore((s) => s.setHovered);
   const select = useAtlasSceneStore((s) => s.select);
+  const requestCameraFocus = useAtlasSceneStore((s) => s.requestCameraFocus);
 
   // Fog of war: unexplored terrain must not expose settlements.
   if (!tile || !visible) return null;
@@ -36,6 +37,10 @@ export function CapitalMarker({ terrain, tileId, visible }: CapitalMarkerProps) 
     event.stopPropagation();
     select({ kind: "capital", id: MARKER_ID });
   };
+  const handleDoubleClick = (event: ThreeEvent<MouseEvent>) => {
+    event.stopPropagation();
+    requestCameraFocus("capital");
+  };
 
   return (
     <group
@@ -43,6 +48,7 @@ export function CapitalMarker({ terrain, tileId, visible }: CapitalMarkerProps) 
       onPointerOver={handlePointerOver}
       onPointerOut={handlePointerOut}
       onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
     >
       <mesh position={[0, 0.4, 0]} castShadow receiveShadow>
         <boxGeometry args={[0.9, 0.8, 0.9]} />

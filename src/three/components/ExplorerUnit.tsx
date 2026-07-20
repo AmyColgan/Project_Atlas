@@ -22,6 +22,7 @@ export function ExplorerUnit({ terrain, tileId, visible }: ExplorerUnitProps) {
   const selected = useAtlasSceneStore((s) => s.selected?.kind === "explorer" && s.selected.id === UNIT_ID);
   const setHovered = useAtlasSceneStore((s) => s.setHovered);
   const select = useAtlasSceneStore((s) => s.select);
+  const requestCameraFocus = useAtlasSceneStore((s) => s.requestCameraFocus);
 
   useFrame(() => {
     const group = groupRef.current;
@@ -69,6 +70,10 @@ export function ExplorerUnit({ terrain, tileId, visible }: ExplorerUnitProps) {
     event.stopPropagation();
     select(selected ? null : { kind: "explorer", id: UNIT_ID });
   };
+  const handleDoubleClick = (event: ThreeEvent<MouseEvent>) => {
+    event.stopPropagation();
+    requestCameraFocus("explorer");
+  };
 
   return (
     <group
@@ -77,6 +82,7 @@ export function ExplorerUnit({ terrain, tileId, visible }: ExplorerUnitProps) {
       onPointerOver={handlePointerOver}
       onPointerOut={handlePointerOut}
       onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
     >
       <mesh position={[0, 0.32, 0]} castShadow>
         <capsuleGeometry args={[0.22, 0.32, 4, 8]} />
